@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { insertOrderSchema, insertMenuItemSchema, insertTransactionSchema, type OrderItem } from "@shared/schema";
 import { z } from "zod";
 
-export async function registerRoutes(app: Express): Promise<Server> {
+export function createRoutes(app: Express): Promise<Server> {
   // Menu routes
   app.get("/api/menu", async (req, res) => {
     try {
@@ -107,7 +107,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertOrderSchema.parse(req.body);
       const order = await storage.createOrder(validatedData);
-      
+
       // Create transaction record
       await storage.createTransaction({
         orderId: order.id,
@@ -115,7 +115,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         paymentMethod: order.paymentMethod,
         status: "completed",
       });
-      
+
       res.status(201).json(order);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -129,16 +129,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const id = parseInt(req.params.id);
       const { status } = req.body;
-      
+
       if (!status || !["pending", "confirmed", "completed", "rejected"].includes(status)) {
         return res.status(400).json({ error: "Invalid status" });
       }
-      
+
       const order = await storage.updateOrderStatus(id, status, new Date());
       if (!order) {
         return res.status(404).json({ error: "Order not found" });
       }
-      
+
       res.json(order);
     } catch (error) {
       res.status(500).json({ error: "Failed to update order status" });
@@ -150,7 +150,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const startDate = req.query.startDate as string;
       const endDate = req.query.endDate as string;
-      
+
       if (startDate && endDate) {
         const transactions = await storage.getTransactionsByDateRange(
           new Date(startDate),
@@ -171,7 +171,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const startDate = req.query.startDate as string;
       const endDate = req.query.endDate as string;
-      
+
       let transactions;
       if (startDate && endDate) {
         transactions = await storage.getTransactionsByDateRange(
@@ -181,10 +181,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         transactions = await storage.getAllTransactions();
       }
-      
+
       const orders = await storage.getAllOrders();
       const completedOrders = orders.filter(order => order.status === 'completed');
-      
+
       const summary = {
         totalOrders: completedOrders.length,
         totalRevenue: transactions.reduce((sum, t) => sum + t.amount, 0),
@@ -194,7 +194,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         topMenuItem: await getTopMenuItem(orders),
         recentTransactions: transactions.slice(0, 10),
       };
-      
+
       res.json(summary);
     } catch (error) {
       res.status(500).json({ error: "Failed to generate report summary" });
@@ -203,7 +203,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   async function getTopMenuItem(orders: any[]) {
     const itemCounts: { [key: string]: number } = {};
-    
+
     orders.forEach(order => {
       try {
         const items: OrderItem[] = JSON.parse(order.items);
@@ -214,10 +214,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Skip invalid JSON
       }
     });
-    
+
     const topItem = Object.entries(itemCounts)
       .sort(([,a], [,b]) => b - a)[0];
-    
+
     return topItem ? topItem[0] : "No data";
   }
 
